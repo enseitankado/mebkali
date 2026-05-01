@@ -1,0 +1,24 @@
+# Backups created by scripts at runtime
+*.bak.*
+*.backup
+sources.list.bak.*
+timesyncd.conf.bak.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local test scratch
+/tmp/
+*.log
+
+# Python
+__pycache__/
+*.pyc
