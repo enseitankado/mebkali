@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # mebkali.sh
-# Kali (MEB MITM/firewall arkasında) için adım adım yapılandırma orkestratörü.
-# 6 alt-betiği sırayla çağırır; her adımda önce engeli ve çözümü anlatır,
-# sonra kullanıcıdan onay alır.
+# MEB ağı arkasındaki Kali makinelerini adım adım kullanılır hale getiren
+# yönetici betik. 6 alt betiği sırayla çağırır; her adımda önce engeli ve
+# çözümü anlatır, sonra kullanıcıdan onay alır.
 #
 # Çalıştırma:
-#   bash mebkali.sh           # interaktif (her adımda onay)
-#   bash mebkali.sh -y        # tüm adımları onaysız (otomatik evet)
-#   SUDO_PASS=kali bash ...   # sudo şifresini env ile geçir (default "kali")
+#   bash mebkali.sh           # her adımda onay (E/h/q)
+#   bash mebkali.sh -y        # tüm adımlar onaysız (otomatik evet)
+#   SUDO_PASS=kali bash ...   # sudo şifresini ortam değişkeniyle geçir
 
 set -uo pipefail
 
-# Box çizimi ve genişlik hesabı için UTF-8 locale gerekli
+# Çerçeve genişlik hesabı için UTF-8 yerel ayarı zorunlu
 export LC_ALL="${LC_ALL:-C.UTF-8}"
 export LANG="${LANG:-C.UTF-8}"
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_DIR_NAME="$(basename "$(pwd)")"   # GitHub'dan farklı isimle clone edilirse de doğru görünür
+SCRIPT_DIR_NAME="$(basename "$(pwd)")"
 
 # ─── Argümanlar ────────────────────────────────────────────────────────
 AUTO_YES=0
@@ -31,7 +31,7 @@ Kullanım: bash mebkali.sh [-y|--yes] [-h|--help]
   -h, --help   Bu yardımı göster.
 
 Ortam değişkenleri:
-  SUDO_PASS    Sudo şifresi (default: "kali"). Sudo prompt'u atlamak için.
+  SUDO_PASS    Sudo şifresi (varsayılan: "kali"). Sudo sorgusunu atlamak için.
 EOF
       exit 0
       ;;
@@ -51,58 +51,102 @@ SUDO_PASS="${SUDO_PASS:-kali}"
 RESULTS=()
 START_TIME=$(date +%s)
 
-# ─── UI yardımcıları (sağ kenar çizgisi YOK — emoji/TR genişlik sorunu olmaz) ─
+# ─── Çerçeve çizimi ────────────────────────────────────────────────────
+INNER=70
+
+# Sabit dash şeridi (INNER kadar ─)
+DASH_LINE=""
+for ((i=0; i<INNER; i++)); do DASH_LINE+="─"; done
+
+# Görünür sütun uzunluğu: ANSI sökülür; UTF-8 codepoint sayısına emoji
+# (U+1F300–U+1FAFF) için +1 ekler (terminalde 2 sütun yer kaplar).
+vlen() {
+  local s
+  s=$(printf '%s' "$1" | sed -E $'s/\x1B\\[[0-9;]*[a-zA-Z]//g')
+  local n=${#s}
+  local extras
+  extras=$(printf '%s' "$s" | grep -oP '[\x{1F300}-\x{1FAFF}]' 2>/dev/null | wc -l)
+  echo $((n + extras))
+}
+
+top_bar() { printf '%s%s╭%s╮%s\n' "$BOLD" "$1" "$DASH_LINE" "$RST"; }
+bot_bar() { printf '%s%s╰%s╯%s\n' "$BOLD" "$1" "$DASH_LINE" "$RST"; }
+
+# Tek satır içerik basar; içerik hangi uzunlukta olursa olsun sağ kenara
+# kadar boşlukla doldurur ve sağ │ koyar.
+boxln() {
+  local color="$1" content="$2"
+  local clen pad
+  clen=$(vlen "$content")
+  pad=$((INNER - clen))
+  (( pad < 0 )) && pad=0
+  printf '%s│%s%s%s%*s%s│%s\n' \
+    "$BOLD$color" "$RST" "$content" "$RST" \
+    "$pad" "" \
+    "$BOLD$color" "$RST"
+}
+
+empty() { boxln "$1" ""; }
+
+# Adım açılış başlığı: ╭─[ Adım N/M ]─ Başlık ──...──╮
+step_top() {
+  local n="$1" title="$2"
+  local prefix="─[ Adım $n/$TOTAL_STEPS ]─ $title "
+  local plen pad dashes=""
+  plen=$(vlen "$prefix")
+  pad=$((INNER - plen))
+  (( pad < 0 )) && pad=0
+  while ((pad-- > 0)); do dashes+="─"; done
+  printf '%s%s╭%s%s╮%s\n' "$BOLD" "$MAGENTA" "$prefix" "$dashes" "$RST"
+}
+
+# ─── UI bloklar ────────────────────────────────────────────────────────
 banner() {
   printf '\n'
-  printf '%s%s╭──────────────────────────────────────────────────────────────────────%s\n' "$BOLD" "$CYAN" "$RST"
-  printf '%s%s│%s\n' "$BOLD" "$CYAN" "$RST"
-  printf '%s%s│%s   %s🚀  MEBKALI%s — Kali Bootstrap\n' "$BOLD" "$CYAN" "$RST" "$BOLD$WHITE" "$RST"
-  printf '%s%s│%s       %sMEB MITM / firewall arkasında adım adım yapılandırma%s\n' "$BOLD" "$CYAN" "$RST" "$DIM" "$RST"
-  printf '%s%s│%s\n' "$BOLD" "$CYAN" "$RST"
-  printf '%s%s│%s   %s•%s %s%d ardışık adım%s — her biri MEB/firewall'\''un bir engelini aşar\n' \
-    "$BOLD" "$CYAN" "$RST" "$GREEN" "$RST" "$BOLD" "$TOTAL_STEPS" "$RST"
+  top_bar "$CYAN"
+  empty "$CYAN"
+  boxln "$CYAN" "   ${BOLD}${WHITE}🚀  MEBKALI${RST} — Kali için MEB ağı yapılandırma yardımcısı"
+  boxln "$CYAN" "       ${DIM}MEB ağında kurulu Kali'yi adım adım kullanılır hale getirir${RST}"
+  empty "$CYAN"
+  boxln "$CYAN" "   ${GREEN}•${RST} ${BOLD}${TOTAL_STEPS} ardışık adım${RST} — her biri MEB ağının bir engelini aşar"
   if (( AUTO_YES )); then
-    printf '%s%s│%s   %s•%s Tüm adımlar onaysız çalışacak %s(-y)%s\n' \
-      "$BOLD" "$CYAN" "$RST" "$GREEN" "$RST" "$DIM" "$RST"
+    boxln "$CYAN" "   ${GREEN}•${RST} Tüm adımlar onaysız çalışacak ${DIM}(-y)${RST}"
   else
-    printf '%s%s│%s   %s•%s Her adımdan önce ne yapacağı anlatılır ve onay alınır\n' \
-      "$BOLD" "$CYAN" "$RST" "$GREEN" "$RST"
+    boxln "$CYAN" "   ${GREEN}•${RST} Her adımdan önce ne yapacağı anlatılır ve onay alınır"
   fi
-  printf '%s%s│%s   %s•%s Idempotent — yarıda kesilse de yeniden başlatılabilir\n' \
-    "$BOLD" "$CYAN" "$RST" "$GREEN" "$RST"
-  printf '%s%s│%s\n' "$BOLD" "$CYAN" "$RST"
+  boxln "$CYAN" "   ${GREEN}•${RST} Yeniden çalıştırılabilir — yarıda kesilse de baştan başlanabilir"
+  empty "$CYAN"
   if ! (( AUTO_YES )); then
-    printf '%s%s│%s   %sİpucu:%s onay sorularında %sE%s = evet, %sh%s = atla, %sq%s = çıkış\n' \
-      "$BOLD" "$CYAN" "$RST" "$DIM" "$RST" "$BOLD" "$RST" "$BOLD" "$RST" "$BOLD" "$RST"
-    printf '%s%s│%s   %sTümünü otomatik onaylamak için: %s%sbash mebkali.sh -y%s\n' \
-      "$BOLD" "$CYAN" "$RST" "$DIM" "$RST" "$BOLD" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$CYAN" "$RST"
+    boxln "$CYAN" "   ${DIM}İpucu:${RST} onay sorularında ${BOLD}E${RST} = evet, ${BOLD}h${RST} = atla, ${BOLD}q${RST} = çıkış"
+    boxln "$CYAN" "   ${DIM}Tümünü otomatik onaylamak için:${RST} ${BOLD}bash mebkali.sh -y${RST}"
+    empty "$CYAN"
   fi
-  printf '%s%s╰──────────────────────────────────────────────────────────────────────%s\n\n' "$BOLD" "$CYAN" "$RST"
+  bot_bar "$CYAN"
+  printf '\n'
 }
 
 step_open() {
   local n="$1" title="$2"
   printf '\n'
-  printf '%s%s╭─[ Adım %d/%d ]─ %s%s\n'      "$BOLD" "$MAGENTA" "$n" "$TOTAL_STEPS" "$title" "$RST"
-  printf '%s%s│%s\n'                          "$BOLD" "$MAGENTA" "$RST"
+  step_top "$n" "$title"
+  empty "$MAGENTA"
 }
 
 step_engel() {
-  printf '%s%s│%s  %s%s%s MEB engeli%s\n' "$BOLD" "$MAGENTA" "$RST" "$BOLD" "$YELLOW" "$GLY_WARN" "$RST"
+  boxln "$MAGENTA" "  ${BOLD}${YELLOW}${GLY_WARN}${RST}${BOLD} MEB engeli${RST}"
   while IFS= read -r line; do
-    printf '%s%s│%s    %s%s%s\n' "$BOLD" "$MAGENTA" "$RST" "$DIM" "$line" "$RST"
+    boxln "$MAGENTA" "    ${DIM}${line}${RST}"
   done
-  printf '%s%s│%s\n' "$BOLD" "$MAGENTA" "$RST"
+  empty "$MAGENTA"
 }
 
 step_cozum() {
-  printf '%s%s│%s  %s%s%s Bu adımın çözümü%s\n' "$BOLD" "$MAGENTA" "$RST" "$BOLD" "$GREEN" "$GLY_OK" "$RST"
+  boxln "$MAGENTA" "  ${BOLD}${GREEN}${GLY_OK}${RST}${BOLD} Bu adımın çözümü${RST}"
   while IFS= read -r line; do
-    printf '%s%s│%s    %s\n' "$BOLD" "$MAGENTA" "$RST" "$line"
+    boxln "$MAGENTA" "    ${line}"
   done
-  printf '%s%s│%s\n' "$BOLD" "$MAGENTA" "$RST"
-  printf '%s%s╰─%s\n' "$BOLD" "$MAGENTA" "$RST"
+  empty "$MAGENTA"
+  bot_bar "$MAGENTA"
 }
 
 # ─── Onay sorgusu ──────────────────────────────────────────────────────
@@ -173,55 +217,55 @@ celebrate() {
   done
   printf '\n'
   if (( failed == 0 )) && (( passed > 0 )); then
-    printf '%s%s╭──────────────────────────────────────────────────────────────────────%s\n' "$BOLD" "$GREEN" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$GREEN" "$RST"
-    printf '%s%s│%s   %s🎉  TEBRİKLER!%s\n' "$BOLD" "$GREEN" "$RST" "$BOLD$WHITE" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$GREEN" "$RST"
-    printf '%s%s│%s   Kali makineniz %s%d adımda%s ve %s%d saniyede%s yapılandırıldı:\n' \
-      "$BOLD" "$GREEN" "$RST" "$BOLD" "$passed" "$RST" "$BOLD" "$total" "$RST"
+    top_bar "$GREEN"
+    empty "$GREEN"
+    boxln "$GREEN" "   ${BOLD}${WHITE}🎉  TEBRİKLER!${RST}"
+    empty "$GREEN"
+    boxln "$GREEN" "   Kali makineniz ${BOLD}${passed} adımda${RST} ve ${BOLD}${total} saniyede${RST} yapılandırıldı:"
     if (( skipped > 0 )); then
-      printf '%s%s│%s   %s(%d adım atlandı)%s\n' "$BOLD" "$GREEN" "$RST" "$DIM" "$skipped" "$RST"
+      boxln "$GREEN" "   ${DIM}(${skipped} adım atlandı)${RST}"
     fi
-    printf '%s%s│%s\n' "$BOLD" "$GREEN" "$RST"
+    empty "$GREEN"
     for r in "${RESULTS[@]}"; do
       case "$r" in
-        OK:01-*)   printf '%s%s│%s     %s✓%s  MEB MITM kök sertifika güveni\n'              "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        OK:02-*)   printf '%s%s│%s     %s✓%s  Apt mirror yedekli, çalışıyor\n'              "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        OK:03-*)   printf '%s%s│%s     %s✓%s  Türkçe locale + Q klavye (3 katman)\n'        "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        OK:04-*)   printf '%s%s│%s     %s✓%s  Saat dilimi Europe/Istanbul + yedekli NTP\n'  "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        OK:05-*)   printf '%s%s│%s     %s✓%s  VBox host paylaşım altyapısı (pano + dosya)\n' "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        OK:06-*)   printf '%s%s│%s     %s✓%s  HTTPS-only firewall bypass (whois→RDAP)\n'    "$BOLD" "$GREEN" "$RST" "$GREEN" "$RST" ;;
-        SKIP:01-*) printf '%s%s│%s     %s↪%s  MEB sertifika adımı atlandı\n'                "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
-        SKIP:02-*) printf '%s%s│%s     %s↪%s  Apt mirror adımı atlandı\n'                   "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
-        SKIP:03-*) printf '%s%s│%s     %s↪%s  Türkçe locale/klavye adımı atlandı\n'         "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
-        SKIP:04-*) printf '%s%s│%s     %s↪%s  Saat/NTP adımı atlandı\n'                     "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
-        SKIP:05-*) printf '%s%s│%s     %s↪%s  VBox paylaşım adımı atlandı\n'                "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
-        SKIP:06-*) printf '%s%s│%s     %s↪%s  RDAP whois adımı atlandı\n'                   "$BOLD" "$GREEN" "$RST" "$YELLOW" "$RST" ;;
+        OK:01-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  MEB kök sertifikasının sisteme tanıtılması" ;;
+        OK:02-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Apt paket sunucusu (yedekli, çalışan)" ;;
+        OK:03-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Türkçe yerel ayarlar + Q klavye" ;;
+        OK:04-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Saat dilimi + zaman senkronizasyonu" ;;
+        OK:05-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  VirtualBox ana makine paylaşımı" ;;
+        OK:06-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Engellenen araçlar için yedek yöntem" ;;
+        SKIP:01-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  MEB sertifika adımı atlandı" ;;
+        SKIP:02-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Apt paket sunucusu adımı atlandı" ;;
+        SKIP:03-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Türkçe yerel ayar/klavye adımı atlandı" ;;
+        SKIP:04-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Saat/zaman senkronizasyon adımı atlandı" ;;
+        SKIP:05-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  VirtualBox paylaşım adımı atlandı" ;;
+        SKIP:06-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Yedek araç (RDAP) adımı atlandı" ;;
       esac
     done
-    printf '%s%s│%s\n' "$BOLD" "$GREEN" "$RST"
-    printf '%s%s│%s   %sSıradaki manuel adımlar:%s\n' "$BOLD" "$GREEN" "$RST" "$BOLD$WHITE" "$RST"
-    printf '%s%s│%s     %s•%s Bir kez logout → login (locale + Q klavye + grup üyeliği)\n' \
-      "$BOLD" "$GREEN" "$RST" "$CYAN" "$RST"
-    printf '%s%s│%s     %s•%s Host VBox: Bidirectional clipboard + Shared Folder ayarla\n' \
-      "$BOLD" "$GREEN" "$RST" "$CYAN" "$RST"
-    printf '%s%s│%s       %s(talimat: bash %s/05-vbox-host-paylasim.sh --print-host-cmds)%s\n' \
-      "$BOLD" "$GREEN" "$RST" "$DIM" "$SCRIPT_DIR_NAME" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$GREEN" "$RST"
-    printf '%s%s╰──────────────────────────────────────────────────────────────────────%s\n\n' "$BOLD" "$GREEN" "$RST"
+    empty "$GREEN"
+    boxln "$GREEN" "   ${BOLD}${WHITE}Sıradaki manuel adımlar:${RST}"
+    boxln "$GREEN" "     ${CYAN}•${RST} Bir kez oturumu kapat → aç (yerel ayar + klavye + grup)"
+    boxln "$GREEN" "     ${CYAN}•${RST} Ana makinede VirtualBox ayarı: pano + paylaşılan klasör"
+    boxln "$GREEN" "       ${DIM}komut için: bash 05-vbox-host-paylasim.sh --print-host-cmds${RST}"
+    empty "$GREEN"
+    bot_bar "$GREEN"
+    printf '\n'
   elif (( failed > 0 )); then
-    printf '%s%s╭──────────────────────────────────────────────────────────────────────%s\n' "$BOLD" "$RED" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$RED" "$RST"
-    printf '%s%s│%s   %s%s %d adım başarısız%s\n' "$BOLD" "$RED" "$RST" "$BOLD" "$GLY_FAIL" "$failed" "$RST"
-    printf '%s%s│%s   Hatayı düzeltip yeniden çalıştırın (idempotent).\n' "$BOLD" "$RED" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$RED" "$RST"
-    printf '%s%s╰──────────────────────────────────────────────────────────────────────%s\n\n' "$BOLD" "$RED" "$RST"
+    top_bar "$RED"
+    empty "$RED"
+    boxln "$RED" "   ${BOLD}${GLY_FAIL}${RST} ${BOLD}${failed} adım başarısız${RST}"
+    boxln "$RED" "   Hatayı düzeltip yeniden çalıştırın."
+    boxln "$RED" "   ${DIM}(Betikler yeniden çalıştırılabilir; var olanı tekrar uygulamaz)${RST}"
+    empty "$RED"
+    bot_bar "$RED"
+    printf '\n'
   else
-    printf '%s%s╭──────────────────────────────────────────────────────────────────────%s\n' "$BOLD" "$YELLOW" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$YELLOW" "$RST"
-    printf '%s%s│%s   %s%s Hiçbir adım uygulanmadı.%s\n' "$BOLD" "$YELLOW" "$RST" "$BOLD" "$GLY_WARN" "$RST"
-    printf '%s%s│%s\n' "$BOLD" "$YELLOW" "$RST"
-    printf '%s%s╰──────────────────────────────────────────────────────────────────────%s\n\n' "$BOLD" "$YELLOW" "$RST"
+    top_bar "$YELLOW"
+    empty "$YELLOW"
+    boxln "$YELLOW" "   ${BOLD}${GLY_WARN} Hiçbir adım uygulanmadı.${RST}"
+    empty "$YELLOW"
+    bot_bar "$YELLOW"
+    printf '\n'
   fi
 }
 
@@ -229,7 +273,7 @@ celebrate() {
 prep_sudo() {
   printf '%s%s%s Sudo erişimi sağlanıyor...%s\n' "$CYAN" "$GLY_INFO" "$RST" "$RST"
   if ! echo "$SUDO_PASS" | sudo -S -v 2>/dev/null; then
-    printf '%s%s%s Sudo şifresi reddedildi. SUDO_PASS env veya stdin ile doğru şifreyi ver.%s\n' \
+    printf '%s%s%s Sudo şifresi reddedildi. SUDO_PASS ortam değişkeniyle veya stdin ile doğru şifreyi ver.%s\n' \
       "$RED" "$GLY_FAIL" "$RST" "$RST"
     exit 1
   fi
@@ -242,22 +286,22 @@ prep_sudo() {
 # ─── Adım tanımları ────────────────────────────────────────────────────
 
 step1() {
-  step_open 1 "MEB MITM kök sertifika güveni"
+  step_open 1 "MEB kök sertifikasının sisteme tanıtılması"
   step_engel <<'ENGEL'
-MEB firewall TLS bağlantılarını intercept edip kendi 'fatihca' kök
-sertifikasıyla yeniden imzalıyor. Sistem bu kökü güvenli bilmediği için
-curl/git/wget/python/firefox/chromium TÜM HTTPS bağlantılarında
-'CERTIFICATE_VERIFY_FAILED' hatası alır. Apt update bile imkansız.
+MEB ağı, internete giden tüm güvenli (HTTPS) bağlantıları kendi
+kök sertifikasıyla yeniden imzalıyor. Kali bu sertifikayı
+tanımadığı için curl, git, apt, Firefox, Python — hiçbir araç
+internete ulaşamıyor; "sertifika doğrulanamadı" hatası alıyor.
 ENGEL
   step_cozum <<'COZUM'
-'fatihca' kökü 4 farklı trust deposuna eklenir: (1) sistem CA bundle
-(curl/git/wget/openssl), (2) p11-kit shared trust, (3) Firefox NSS DB,
-(4) Chromium NSS DB. Python 3.13'ün VERIFY_X509_STRICT bayrağı MEB'in
-eksik AKI extension'ıyla çakıştığı için ssl ve urllib3'e
-/usr/lib/python3/dist-packages/'a versiyonsuz, apt-upgrade-proof bir
-yama konulur. /etc/profile.d/meb-ca.sh ile SSL_CERT_FILE,
-REQUESTS_CA_BUNDLE, NODE_EXTRA_CA_CERTS, PIP_CERT, GIT_SSL_CAINFO vb.
-tüm araç env vars sistem CA bundle'ına yönlendirilir.
+MEB kök sertifikası 4 farklı güven deposuna ekleniyor: sistem
+geneli sertifika havuzu, Firefox'un sertifika veritabanı,
+Chromium'un sertifika veritabanı ve Python'un kendi denetimi.
+Python'un katı sertifika kontrolü MEB sertifikasını kabul etsin
+diye bir yama da bırakılıyor (paket güncellemelerinden
+etkilenmeyecek konumda). Kabukta SSL_CERT_FILE,
+REQUESTS_CA_BUNDLE, GIT_SSL_CAINFO gibi ortam değişkenleri
+sistem havuzuna yönlendiriliyor.
 COZUM
   if ask_confirm; then
     run_script "01-mitm-cert-trust.sh"
@@ -268,19 +312,17 @@ COZUM
 }
 
 step2() {
-  step_open 2 "Apt mirror yedekli HTTPS yönlendirmesi"
+  step_open 2 "Apt paket sunucusu (yedekli, çalışan)"
   step_engel <<'ENGEL'
-Default mirror http.kali.org HTTP/503 dönüyor — apt update, paket
-kurulumu yapılamıyor. Tek bir mirror'a güvenmek tek nokta arızasıdır;
-betik çalıştığı tarihte o da erişilemez olabilir.
+Kali kurulduğunda varsayılan paket sunucusu (mirror) o an
+yanıt vermiyor olabilir; tek bir sunucuya güvenmek riskli.
+Sunucu erişilemez olduğunda apt güncellemesi bile yapılamıyor.
 ENGEL
   step_cozum <<'COZUM'
-11 aday mirror sırayla HTTPS InRelease testinden geçer (kali.download
-CDN ilk; GARR-IT, NetCologne, archive-1..3, Dalhousie, KAIST, FU Berlin,
-http.kali.org). İlk 200 dönen seçilir. /etc/apt/sources.list zaman
-damgalı yedeklenir; awk ile sadece kali-rolling deb satırlarındaki URL
-değiştirilir (3rd party PPA'lara dokunulmaz). apt update başarısızsa
-otomatik revert.
+11 farklı yedek paket sunucusu sırayla denenir; ilk yanıt veren
+seçilir. Mevcut yapılandırma zaman damgalı yedeklenir; bir
+sorun olursa otomatik geri alınır. Sadece kali-rolling
+satırlarına dokunulur, eklenti depolar etkilenmez.
 COZUM
   if ask_confirm; then
     run_script "02-apt-mirror-fix.sh"
@@ -291,21 +333,19 @@ COZUM
 }
 
 step3() {
-  step_open 3 "Türkçe locale + Q klavye (3 katman)"
+  step_open 3 "Türkçe yerel ayarlar + Q klavye"
   step_engel <<'ENGEL'
-Default Kali en_US locale + US klavye. Türkçe karakterler yazılamıyor;
-yazılsa bile 'i'/'I'/'İ' büyük-küçük dönüşümü ve Türkçe sıralama
-yanlış. (Bu adımda doğrudan MEB-bağlantılı bir engel yok — Kali default
-yapılandırmasının üzerinden gelinmesi gereken bir Türkiye-uyum açığı.)
+Kali, Amerikan İngilizcesi yerel ayarıyla geliyor; Türkçe
+karakterler yazılamıyor, "İ"/"i" büyük-küçük dönüşümü ve
+Türkçe sıralama yanlış. (Bu adımda doğrudan MEB-bağlantılı
+bir engel yok — Türkiye uyum açığı.)
 ENGEL
   step_cozum <<'COZUM'
-locale-gen ile tr_TR.UTF-8 derlenir; hibrit ayar: LANG=en_US.UTF-8 +
-LC_CTYPE/COLLATE/TIME=tr_TR.UTF-8 (arayüz/loglar İngilizce, Türkçe
-karakter sınıflandırma doğru). Klavye için sistemd-native localectl
-set-x11-keymap tr + manuel /etc/default/keyboard yazımı (Debian
-peculiarity). TTY için /etc/vconsole.conf KEYMAP=trq. XFCE per-user
-override temizlenir, çalışan oturuma anında setxkbmap uygulanır.
-LightDM giriş ekranı /etc/default/keyboard'u zaten okur.
+Türkçe yerel ayarlar (tr_TR.UTF-8) etkinleştirilir. Karma
+yapı: arayüz dili İngilizce kalır, ama karakter sınıflandırma
+ve sıralama Türkçe (büyük/küçük harf "İ" doğru çalışır).
+Türkçe Q klavye 3 katmanda kurulur: terminal (TTY), grafik
+ortam (X11) ve oturum açma ekranı (LightDM).
 COZUM
   if ask_confirm; then
     run_script "03-turkce-locale-keyboard.sh"
@@ -316,19 +356,18 @@ COZUM
 }
 
 step4() {
-  step_open 4 "Saat dilimi Europe/Istanbul + yedekli NTP + 24h"
+  step_open 4 "Saat dilimi + zaman senkronizasyonu"
   step_engel <<'ENGEL'
-VM default timezone America/New_York → 7 saat fark. NTP UDP/123 başka
-HTTPS-dışı portlar gibi MEB tarafından engellenebilirdi; testlerde açık
-çıktı ama tek bir NTP havuzuna güvenmek yedeksizdir.
+Sanal makinenin saat dilimi varsayılan olarak yanlış olabiliyor;
+zaman ayarı için tek bir sunucuya güvenmek yedeksiz. NTP
+trafiği bazı sıkı güvenlik duvarlarında engellenebilir.
 ENGEL
   step_cozum <<'COZUM'
-Timezone Europe/Istanbul'a ayarlanır (IANA tzdata Türkiye'nin DST
-kararlarını otomatik takip eder; gelecekteki olası değişiklikler apt
-upgrade ile gelir). systemd-timesyncd'a 4 primary + 6 fallback NTP
-sunucu yazılır (TR pool, Cloudflare anycast, Debian, Google, NIST...).
-Aktif sunucu çoğu zaman 0.tr.pool.ntp.org. RTC UTC'de tutulur (dual-boot
-Windows ile karışmaz). XFCE saat plugin formatı %R (24-saat sabit).
+Saat dilimi Europe/Istanbul yapılır (yaz/kış saati değişimleri
+otomatik takip edilir). systemd-timesyncd'ye 4 birincil + 6
+yedek zaman sunucusu yazılır (Türkiye, Cloudflare, Google,
+Debian, NIST). Donanım saati UTC'de tutulur (Windows ile çift
+kurulumda saat karışmaz). Saat ekranda 24 saat biçimde gösterilir.
 COZUM
   if ask_confirm; then
     run_script "04-ntp-tz-format.sh"
@@ -339,21 +378,20 @@ COZUM
 }
 
 step5() {
-  step_open 5 "VirtualBox host paylaşım (hipervizör IPC)"
+  step_open 5 "VirtualBox ana makine paylaşımı (pano + dosya)"
   step_engel <<'ENGEL'
-Host (siz) ile guest (Kali) arası dosya/pano paylaşımı için ağ tabanlı
-yöntemler (SSH, SCP, SMB, web) seçilseydi, trafik MEB firewall görüş
-alanına girerdi: gözetim, içerik filtreleme ve protokol blokları
-risktir.
+Sanal makine ile ana bilgisayar arasında dosya/pano paylaşımı
+için ağ tabanlı yöntemler (SSH, SCP, web yükleme) kullanılırsa,
+paketler MEB ağından geçer: gözetim, içerik filtreleme ve
+protokol engelleri risktir.
 ENGEL
   step_cozum <<'COZUM'
-VirtualBox Guest Additions hipervizör IPC kullanır — paketler ağdan
-hiç çıkmaz, MEB'in görüş alanı dışındadır. clipboard/draganddrop/seamless
-daemon'ları doğrulanır; vboxsf grubu ve kernel modülleri idempotent
-garantilenir; xclip + xsel kurulur. Host VM ayarlarını yapmak için
-VBoxManage komutları ve GUI talimatları yazdırılır (host-side ayarları
-guest'ten otomatize edilemez). --test-clipboard ile iki yönlü pano
-testi sonradan çalıştırılabilir.
+VirtualBox'ın hipervizör IPC altyapısı kullanılır — paketler
+ağdan hiç çıkmaz, MEB'in görüş alanı dışındadır. Pano,
+sürükle-bırak ve paylaşılan klasör destekleri doğrulanır;
+gerekli kullanıcı grubu ve çekirdek modülleri eklenir. Ana
+makine tarafındaki ayarlar misafirden otomatize edilemez —
+gerekli VBoxManage komutları ekrana yazdırılır.
 COZUM
   if ask_confirm; then
     run_script "05-vbox-host-paylasim.sh"
@@ -364,23 +402,20 @@ COZUM
 }
 
 step6() {
-  step_open 6 "MEB firewall HTTPS-only bypass (whois → RDAP)"
+  step_open 6 "Engellenen araçlar için yedek yöntem (whois → RDAP)"
   step_engel <<'ENGEL'
-MEB firewall yalnızca TCP/443 (HTTPS) ve TCP/80 (HTTP) ile MEB DNS'i
-(195.175.37.137:53) açık tutuyor. Diğer her şey ya açık görünüyor ama
-bloklu (whois 43, AXFR 53/TCP) ya da tamamen bloke (8.8.8.8 UDP/53 vb).
-whois/dnsenum/theHarvester'in çakıldığı ortak nokta: HTTPS dışı out-band
-protokollere bel bağlamaları.
+MEB güvenlik duvarı yalnızca HTTPS (443), HTTP (80) ve MEB DNS
+(195.175.37.137) açık tutuyor. whois (port 43), DNS bölge
+aktarımı (AXFR) ve diğer pek çok port engelli. Bu yüzden
+whois, dnsenum, theHarvester gibi araçlar çalışmıyor.
 ENGEL
   step_cozum <<'COZUM'
-whois için RDAP HTTPS muadili (port 443) bir wrapper /usr/local/bin/
-whois'a kurulur. 3 yedekli RDAP sunucusu (rdap.org, rdap.verisign.com,
-rdap.iana.org) sırayla denenir; JSON yanıt jq ile klasik whois benzeri
-text'e dönüştürülür. theHarvester ve dnsenum'un çakılma sebepleri
-whois'tan farklı (DDG MITM intercept, AXFR firewall) — onlar için
-bilgilendirici notlar basılır: theHarvester için engine değişimi
-(-b bing/crtsh/otx); dnsenum için --noreverse ya da dnsrecon -t std,brt
-alternatifi.
+whois için RDAP (HTTPS üzerinden çalışan whois muadili) bir
+sarmalayıcı betik /usr/local/bin/whois'a kurulur; 3 yedek
+RDAP sunucusu sırayla denenir, sonuç klasik whois biçimine
+çevrilir. theHarvester ve dnsenum için MEB ağında çalışacak
+alternatif kullanım yöntemleri (motor değişimi, AXFR'siz mod)
+ekrana yazdırılır.
 COZUM
   if ask_confirm; then
     run_script "06-firewall-bypass-rdap.sh"
