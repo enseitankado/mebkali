@@ -6,24 +6,41 @@ Okul ağında kullanılan bir Kali makinesi taze kurulduğunda, internete bağla
 
 ![mebkali çalışırken: banner, adım kutuları (engel + çözüm + onay), tebrikler özeti](docs/screenshot.png)
 
-## Çözdüğü problemler
-
-| # | Adım | Aşılan engel |
-|---|---|---|
-| 1 | `01-mitm-cert-trust.sh` | MEB kök sertifikasını **4 ayrı güven deposuna** ekler: sistem geneli sertifika havuzu, Firefox sertifika veritabanı, Chromium sertifika veritabanı, Python'un kendi denetimi. Python'un katı sertifika kontrolü için paket güncellemelerinden etkilenmeyecek bir yama bırakır. |
-| 2 | `02-apt-mirror-fix.sh` | Varsayılan paket sunucusu yanıt vermediğinde, **11 yedekli sunucu** arasından çalışan ilkine geçer. Yapılandırma yedeklenir; bir sorun çıkarsa otomatik geri alınır. |
-| 3 | `03-turkce-locale-keyboard.sh` | Türkçe yerel ayarları (`tr_TR.UTF-8`) ve Türkçe Q klavyeyi **3 katmanda** kurar: terminal (TTY), grafik ortam (X11) ve oturum açma ekranı (LightDM). |
-| 4 | `04-ntp-tz-format.sh` | Saat dilimini `Europe/Istanbul` yapar; zaman senkronizasyonu için **4 birincil + 6 yedek** sunucu yazar. Donanım saati UTC'de tutulur (Windows ile çift kurulumda saat karışmaz); ekran saati 24 saat biçiminde. |
-| 5 | `05-vbox-host-paylasim.sh` | Sanal makine ile ana bilgisayar arasında dosya ve pano paylaşımını hipervizör IPC üzerinden hazırlar — paketler ağdan hiç çıkmaz, MEB'in görüş alanı dışındadır. |
-| 6 | `06-firewall-bypass-rdap.sh` | `whois` engelli olduğunda RDAP (HTTPS üzerinden çalışan muadili) sarmalayıcı betik kurar; `theHarvester` ve `dnsenum` için MEB ağında çalışacak alternatif kullanım yöntemleri yazdırır. |
-
 ## Yükleme
 
+> **Tavuk-yumurta sorunu**: Kali makinesi MEB ağında ilk açıldığında genellikle internete bağlanamaz — `mebkali` zaten bu sorunu çözmek için var. Bu yüzden indirmeyi **internete erişebilen başka bir bilgisayardan** yapıp dosyaları sanal makineye taşımak gerekir.
+
+### 1. İnternete erişebilen bir bilgisayardan ZIP'i indirin
+
+Doğrudan bağlantı (tarayıcıdan veya `curl` ile):
+
+```
+https://github.com/enseitankado/mebkali/archive/refs/heads/main.zip
+```
+
+Yayınlanmış sürümü tercih ederseniz: <https://github.com/enseitankado/mebkali/releases/latest>
+
+### 2. ZIP'i Kali sanal makinesine aktarın
+
+İki yöntemden biri:
+
+**A) USB bellek ile** *(en güvenilir, her durumda çalışır)*
+1. ZIP'i USB belleğe kopyalayın.
+2. USB'yi takın; VirtualBox üst menüsünden **Aygıtlar → USB → \<USB markası\>** seçerek belleği VM'e bağlayın.
+3. Kali içinde dosya yöneticisinden USB'yi açın, ZIP'i ev dizininize kopyalayın, sağ tıkla → **Buraya çıkar**.
+
+**B) Sürükle-bırak ile** *(daha hızlı; VirtualBox Guest Additions kuruluysa çalışır — Kali ISO'ları çoğunlukla kurulu gelir)*
+1. VirtualBox menüsünden **Aygıtlar → Sürükle ve Bırak → Yalnızca Konuğa** seçin.
+2. ZIP'i ana makineden Kali masaüstüne sürükleyin, sağ tıkla → **Buraya çıkar**.
+
+> Sürükle-bırak çalışmazsa endişelenmeyin — A yolunu kullanın.
+
+### 3. Çıkardığınız klasöre girip betiği çalıştırın
+
 ```bash
-git clone https://github.com/<USER>/mebkali.git
-cd mebkali
-bash mebkali.sh           # her adımda E/h/q onayı
-bash mebkali.sh -y        # tüm adımlar onaysız (otomatik evet)
+cd ~/mebkali-main           # ZIP'in çıktığı klasör
+bash mebkali.sh             # her adımda E/h/q onayı
+bash mebkali.sh -y          # tüm adımlar onaysız (otomatik evet)
 ```
 
 > **Sudo şifresi**: Varsayılan `kali`. Farklıysa `SUDO_PASS=<şifre> bash mebkali.sh`.
@@ -34,6 +51,19 @@ Onay sorgusunda:
 - `q` — buraya kadar olanları bırak ve özetle çık
 
 Betikler **yeniden çalıştırılabilir**: yarıda keserseniz veya tekrar çalıştırırsanız zarar vermez; daha önce kurulmuş bir şeyi tekrar kurmaz.
+
+> Kali'de internet zaten çalışıyorsa (örn. ev ağı): `git clone https://github.com/enseitankado/mebkali.git && cd mebkali && bash mebkali.sh` yeterlidir.
+
+## Çözdüğü problemler
+
+| # | Adım | Aşılan engel |
+|---|---|---|
+| 1 | `01-mitm-cert-trust.sh` | MEB kök sertifikasını **4 ayrı güven deposuna** ekler: sistem geneli sertifika havuzu, Firefox sertifika veritabanı, Chromium sertifika veritabanı, Python'un kendi denetimi. Python'un katı sertifika kontrolü için paket güncellemelerinden etkilenmeyecek bir yama bırakır. |
+| 2 | `02-apt-mirror-fix.sh` | Varsayılan paket sunucusu yanıt vermediğinde, **11 yedekli sunucu** arasından çalışan ilkine geçer. Yapılandırma yedeklenir; bir sorun çıkarsa otomatik geri alınır. |
+| 3 | `03-turkce-locale-keyboard.sh` | Türkçe yerel ayarları (`tr_TR.UTF-8`) ve Türkçe Q klavyeyi **3 katmanda** kurar: terminal (TTY), grafik ortam (X11) ve oturum açma ekranı (LightDM). |
+| 4 | `04-ntp-tz-format.sh` | Saat dilimini `Europe/Istanbul` yapar; zaman senkronizasyonu için **4 birincil + 6 yedek** sunucu yazar. Donanım saati UTC'de tutulur (Windows ile çift kurulumda saat karışmaz); ekran saati 24 saat biçiminde. |
+| 5 | `05-vbox-host-paylasim.sh` | Sanal makine ile ana bilgisayar arasında dosya ve pano paylaşımını hipervizör IPC üzerinden hazırlar — paketler ağdan hiç çıkmaz, MEB'in görüş alanı dışındadır. |
+| 6 | `06-firewall-bypass-rdap.sh` | `whois` engelli olduğunda RDAP (HTTPS üzerinden çalışan muadili) sarmalayıcı betik kurar; `theHarvester` ve `dnsenum` için MEB ağında çalışacak alternatif kullanım yöntemleri yazdırır. |
 
 ## Adım betikleri tek başına çalışır
 
