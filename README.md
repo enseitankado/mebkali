@@ -4,6 +4,8 @@ Okul ağında kullanılan bir Kali makinesi taze kurulduğunda, internete bağla
 
 **mebkali**, Kali makinesini bu ortamda kullanılır hale getirmek için gereken her şeyi 6 adımda otomatik yapan bir yardımcı betiktir. MEB kök sertifikasını uygun yerlere kurar, çalışan bir paket sunucusu bulur, Türkçe yerel ayarları ve Q klavyeyi etkinleştirir, saati doğru ayarlar, sanal makineyle ana bilgisayar arasında dosya/pano paylaşımını hazırlar ve engellenen araçlar için yedek yöntemler kurar. Her adımdan önce ne yapılacağını ve hangi engeli aştığını size anlatır, ardından onayınızı alır; istediğiniz adımı atlayabilir, betiği yarıda kesip daha sonra kaldığınız yerden devam edebilirsiniz.
 
+![mebkali çalışırken: banner, adım kutuları (engel + çözüm + onay), tebrikler özeti](docs/screenshot.png)
+
 ## Çözdüğü problemler
 
 | # | Adım | Aşılan engel |
