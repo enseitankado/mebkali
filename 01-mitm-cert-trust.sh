@@ -89,7 +89,7 @@ if trust list --filter=ca-anchors 2>/dev/null | tr 'A-F' 'a-f' | tr -d ': ' | gr
 elif trust anchor "$CERT_DST" 2>/dev/null; then
   ok "p11-kit anchor eklendi"
 else
-  warn "p11-kit anchor başarısız (Debian'da writable konum yok) - atlandı"
+  ok "Debian/Kali'de p11-kit yazılabilir konum sunmuyor — bu adım gereksiz (NSS DB ile zaten kapsanıyor)"
 fi
 
 # 3) certutil yoksa libnss3-tools kur (önce yan deb, sonra apt)

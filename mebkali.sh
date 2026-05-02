@@ -133,7 +133,8 @@ step_open() {
 }
 
 step_engel() {
-  boxln "$MAGENTA" "  ${BOLD}${YELLOW}${GLY_WARN}${RST}${BOLD} MEB engeli${RST}"
+  local heading="${1:-Aşılacak sorun}"
+  boxln "$MAGENTA" "  ${BOLD}${YELLOW}${GLY_WARN}${RST}${BOLD} ${heading}${RST}"
   while IFS= read -r line; do
     boxln "$MAGENTA" "    ${DIM}${line}${RST}"
   done
@@ -141,7 +142,8 @@ step_engel() {
 }
 
 step_cozum() {
-  boxln "$MAGENTA" "  ${BOLD}${GREEN}${GLY_OK}${RST}${BOLD} Bu adımın çözümü${RST}"
+  local heading="${1:-Bu adımın çözümü}"
+  boxln "$MAGENTA" "  ${BOLD}${GREEN}${GLY_OK}${RST}${BOLD} ${heading}${RST}"
   while IFS= read -r line; do
     boxln "$MAGENTA" "    ${line}"
   done
@@ -287,13 +289,13 @@ prep_sudo() {
 
 step1() {
   step_open 1 "MEB kök sertifikasının sisteme tanıtılması"
-  step_engel <<'ENGEL'
+  step_engel "Sertifika doğrulama hataları" <<'ENGEL'
 MEB ağı, internete giden tüm güvenli (HTTPS) bağlantıları kendi
 kök sertifikasıyla yeniden imzalıyor. Kali bu sertifikayı
 tanımadığı için curl, git, apt, Firefox, Python — hiçbir araç
 internete ulaşamıyor; "sertifika doğrulanamadı" hatası alıyor.
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "Sertifika 4 ayrı güven deposuna eklenecek" <<'COZUM'
 MEB kök sertifikası 4 farklı güven deposuna ekleniyor: sistem
 geneli sertifika havuzu, Firefox'un sertifika veritabanı,
 Chromium'un sertifika veritabanı ve Python'un kendi denetimi.
@@ -313,12 +315,12 @@ COZUM
 
 step2() {
   step_open 2 "Apt paket sunucusu (yedekli, çalışan)"
-  step_engel <<'ENGEL'
+  step_engel "Paket sunucusu erişilemez olabilir" <<'ENGEL'
 Kali kurulduğunda varsayılan paket sunucusu (mirror) o an
 yanıt vermiyor olabilir; tek bir sunucuya güvenmek riskli.
 Sunucu erişilemez olduğunda apt güncellemesi bile yapılamıyor.
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "11 yedekli sunucu arasından çalışan ilkine geçilecek" <<'COZUM'
 11 farklı yedek paket sunucusu sırayla denenir; ilk yanıt veren
 seçilir. Mevcut yapılandırma zaman damgalı yedeklenir; bir
 sorun olursa otomatik geri alınır. Sadece kali-rolling
@@ -334,13 +336,13 @@ COZUM
 
 step3() {
   step_open 3 "Türkçe yerel ayarlar + Q klavye"
-  step_engel <<'ENGEL'
+  step_engel "Türkçe karakter ve klavye düzeni eksikliği" <<'ENGEL'
 Kali, Amerikan İngilizcesi yerel ayarıyla geliyor; Türkçe
 karakterler yazılamıyor, "İ"/"i" büyük-küçük dönüşümü ve
 Türkçe sıralama yanlış. (Bu adımda doğrudan MEB-bağlantılı
 bir engel yok — Türkiye uyum açığı.)
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "tr_TR.UTF-8 + Q klavye 3 katmanda kurulacak" <<'COZUM'
 Türkçe yerel ayarlar (tr_TR.UTF-8) etkinleştirilir. Karma
 yapı: arayüz dili İngilizce kalır, ama karakter sınıflandırma
 ve sıralama Türkçe (büyük/küçük harf "İ" doğru çalışır).
@@ -357,12 +359,12 @@ COZUM
 
 step4() {
   step_open 4 "Saat dilimi + zaman senkronizasyonu"
-  step_engel <<'ENGEL'
+  step_engel "Yanlış saat dilimi ve yedeksiz NTP" <<'ENGEL'
 Sanal makinenin saat dilimi varsayılan olarak yanlış olabiliyor;
 zaman ayarı için tek bir sunucuya güvenmek yedeksiz. NTP
 trafiği bazı sıkı güvenlik duvarlarında engellenebilir.
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "Europe/Istanbul + 4+6 yedekli NTP sunucusu yazılacak" <<'COZUM'
 Saat dilimi Europe/Istanbul yapılır (yaz/kış saati değişimleri
 otomatik takip edilir). systemd-timesyncd'ye 4 birincil + 6
 yedek zaman sunucusu yazılır (Türkiye, Cloudflare, Google,
@@ -379,13 +381,13 @@ COZUM
 
 step5() {
   step_open 5 "VirtualBox ana makine paylaşımı (pano + dosya)"
-  step_engel <<'ENGEL'
+  step_engel "Ağ üzerinden dosya/pano paylaşımı MEB tarafından görülür" <<'ENGEL'
 Sanal makine ile ana bilgisayar arasında dosya/pano paylaşımı
 için ağ tabanlı yöntemler (SSH, SCP, web yükleme) kullanılırsa,
 paketler MEB ağından geçer: gözetim, içerik filtreleme ve
 protokol engelleri risktir.
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "Hipervizör IPC üzerinden ağ-dışı paylaşım kurulacak" <<'COZUM'
 VirtualBox'ın hipervizör IPC altyapısı kullanılır — paketler
 ağdan hiç çıkmaz, MEB'in görüş alanı dışındadır. Pano,
 sürükle-bırak ve paylaşılan klasör destekleri doğrulanır;
@@ -403,13 +405,13 @@ COZUM
 
 step6() {
   step_open 6 "Engellenen araçlar için yedek yöntem (whois → RDAP)"
-  step_engel <<'ENGEL'
+  step_engel "Port 43 ve diğer portlar güvenlik duvarında kapalı" <<'ENGEL'
 MEB güvenlik duvarı yalnızca HTTPS (443), HTTP (80) ve MEB DNS
 (195.175.37.137) açık tutuyor. whois (port 43), DNS bölge
 aktarımı (AXFR) ve diğer pek çok port engelli. Bu yüzden
 whois, dnsenum, theHarvester gibi araçlar çalışmıyor.
 ENGEL
-  step_cozum <<'COZUM'
+  step_cozum "whois yerine HTTPS üzerinden çalışan RDAP kurulacak" <<'COZUM'
 whois için RDAP (HTTPS üzerinden çalışan whois muadili) bir
 sarmalayıcı betik /usr/local/bin/whois'a kurulur; 3 yedek
 RDAP sunucusu sırayla denenir, sonuç klasik whois biçimine

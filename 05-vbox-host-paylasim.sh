@@ -269,8 +269,13 @@ if (( ${#SF_MOUNTS[@]} > 0 )); then
     fi
   done
 else
-  warn "Hiç shared folder mount edilmemiş. Host-side ayar gerekli:"
-  warn "  $0 --print-host-cmds  ← host'ta çalıştırılacak komutlar"
+  say "Henüz paylaşılan klasör tanımlı değil — guest tarafı hazır, host tarafı bekleniyor."
+  say "  Ana makineyle dosya alışverişi YAPMAK İSTİYORSANIZ:"
+  say "    1) VM'i kapatın"
+  say "    2) Ana makinede şu komutu çalıştırıp çıktısını uygulayın:"
+  say "         bash $0 --print-host-cmds"
+  say "    3) VM'i tekrar açın; klasör otomatik /media/sf_<isim>'de görünür."
+  say "  Sadece pano/sürükle-bırak yetiyorsa bu adımı atlayabilirsiniz."
 fi
 
 # Özet ve sonraki adımlar

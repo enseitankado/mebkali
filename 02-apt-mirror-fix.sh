@@ -69,19 +69,20 @@ current_mirror() {
 }
 
 apt_update_ok() {
-  # Geçici log; pipefail nedeniyle iki aşamada
-  local logf
+  # Çıktı canlı akar (her satır anında stderr'e); aynı zamanda log'a
+  # yazılır ki sonra hata grep'leyebilelim. tail kullanmıyoruz çünkü
+  # tail tüm girdiyi bekliyor ve kullanıcı askıda kalmış gibi görünüyor.
+  local logf rc
   logf="$(mktemp)"
-  if apt-get update 2>&1 | tee "$logf" | tail -20 >&2; then
-    if grep -qE "^(Err|E:|W: Failed to fetch)" "$logf"; then
-      rm -f "$logf"
-      return 1
-    fi
-    rm -f "$logf"
-    return 0
+  say "apt-get update çalıştırılıyor (Kali rolling deposu büyük; 30-90 sn sürebilir)..."
+  apt-get update 2>&1 | tee "$logf" >&2
+  rc=${PIPESTATUS[0]}
+  if (( rc != 0 )); then rm -f "$logf"; return 1; fi
+  if grep -qE "^(Err|E:|W: Failed to fetch)" "$logf"; then
+    rm -f "$logf"; return 1
   fi
   rm -f "$logf"
-  return 1
+  return 0
 }
 
 # 1) Mevcut durumu oku
