@@ -84,6 +84,39 @@ sudo bash 05-vbox-host-paylasim.sh --print-host-cmds
   bash 05-vbox-host-paylasim.sh --print-host-cmds
   ```
 
+## Kimler için
+
+`mebkali`, **MEB MITM güvenlik duvarı** (veya benzer kurum proxy/MITM altyapısı) arkasında Kali Linux çalıştırması gereken her ortamda işe yarar. Hedef kitle:
+
+### Mesleki ve Teknik Anadolu Liseleri (MTAL) — Bilişim Teknolojileri Alanı
+
+Kali Linux ve sızma testi araçları MTAL çerçeve öğretim programlarında doğrudan **Bilişim Teknolojileri Alanı**nda geçer. Alan içindeki dağılım:
+
+- **Siber Güvenlik dalı** — *Siber Güvenlik Temelleri*, *Sızma Testleri*, *Sistem ve Ağ Güvenliği*, *Web Uygulama Güvenliği*, *Adli Bilişim* derslerinin uygulama kısmı tamamen Kali üstünde işlenir. **(birincil hedef kitle)**
+- **Ağ İşletmenliği ve Siber Güvenlik dalı** — *Ağ Güvenliği*, *Saldırı Tespit ve Önleme* modüllerinde Kali yoğun kullanılır.
+- **Web Programcılığı dalı** — *Web Uygulama Güvenliği* dersinde Burp Suite, sqlmap, OWASP ZAP gibi Kali araçları doğal ortam.
+- **Bilgisayar Teknik Servisi dalı** — *Adli Bilişim Temelleri* ve sistem analizi konularında Autopsy, foremost, hashcat kullanılır.
+- **Bulut Bilişimi dalı** ve **Yapay Zeka Uygulamaları dalı** — bulut güvenliği seçmeli modüllerinde Kali ortam olarak geçer.
+
+Şu an Türkiye genelinde Bilişim Teknolojileri Alanı **200'den fazla MTAL**de açık; Siber Güvenlik dalı her yıl yeni okullara yayılıyor. Sınıflarda öğrenci başına bir Kali sanal makinesi kurulduğunda her seferinde MEB MITM ayarlarıyla manuel uğraşmak yerine bu betik çalıştırılır.
+
+### Üniversite önlisans ve lisans programları
+
+Aynı tür kurum proxy/MITM problemi üniversite kampüs ağlarında da yaşanır. Kali yoğun kullanılan programlar:
+
+- **Önlisans**: Siber Güvenlik, Bilgi Güvenliği Teknolojisi, Bilgisayar Programcılığı, Ağ Teknolojileri, Adli Bilişim Teknolojileri.
+- **Lisans**: Siber Güvenlik (Mühendislik/Teknoloji), Adli Bilişim Mühendisliği, Bilgisayar Mühendisliği'nin ağ/güvenlik seçmelileri, Bilgi Güvenliği yüksek lisansı.
+
+### Diğer kurumlar
+
+- **Halk Eğitim Merkezleri (HEM)** ve **Mesleki Eğitim Merkezleri (MEM)** — siber güvenlik kursları açanlar (özellikle Bilişim Teknolojileri Alanı sertifika programları).
+- **Bilişim Teknolojileri Vadisi**ndeki ar-ge laboratuvarları, **TÜBİTAK BİLGEM** eğitim programları, **STM ThinkTech** atölyeleri — kurum ağına bağlanan stajyer/kursiyer makinelerinde benzer MITM/proxy sorunları görülür.
+- **Belediye akıllı kent eğitim merkezleri** ve **gençlik merkezleri** — siber güvenlik atölyeleri yapan birimler (örn. İBB, ABB Bilim Merkezleri).
+- **Özel kurslar**: BTK Akademi yüz yüze etkinlikleri, Cyberpark eğitim sağlayıcıları, mesleki sertifika veren özel akademiler.
+- **CTF takımları ve yarışma kampları** — okul/üniversite ağlarında prova çalışması yapan takımlar.
+
+> Kurumunuzun ağında Kali kullanırken benzer bir MITM/proxy sorunuyla karşılaşıyorsanız (kök sertifikanız `fatihca` olmasa bile), `01-mitm-cert-trust.sh` içindeki sertifika dosyasını kendi kurum kökünüzle değiştirip aynı betiği kullanabilirsiniz. Adımların geri kalanı zaten kuruma özel değildir.
+
 ## Lisans
 
 MIT — bkz. `LICENSE`.
