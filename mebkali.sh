@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mebkali.sh
 # MEB ağı arkasındaki Kali makinelerini adım adım kullanılır hale getiren
-# yönetici betik. 6 alt betiği sırayla çağırır; her adımda önce engeli ve
+# yönetici betik. 5 alt betiği sırayla çağırır; her adımda önce engeli ve
 # çözümü anlatır, sonra kullanıcıdan onay alır.
 #
 # Çalıştırma:
@@ -46,7 +46,7 @@ MAGENTA=$'\e[35m'; BLUE=$'\e[34m'; GREY=$'\e[90m'; WHITE=$'\e[97m'
 GLY_OK="✓"; GLY_FAIL="✗"; GLY_WARN="⚠"; GLY_RUN="▸"; GLY_INFO="◆"
 GLY_SKIP="↪"; GLY_ASK="?"
 
-TOTAL_STEPS=6
+TOTAL_STEPS=5
 SUDO_PASS="${SUDO_PASS:-kali}"
 RESULTS=()
 START_TIME=$(date +%s)
@@ -235,13 +235,11 @@ celebrate() {
         OK:03-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Türkçe yerel ayarlar + Q klavye" ;;
         OK:04-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Saat dilimi + zaman senkronizasyonu" ;;
         OK:05-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  VirtualBox ana makine paylaşımı" ;;
-        OK:06-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Engellenen araçlar için yedek yöntem" ;;
         SKIP:01-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  MEB sertifika adımı atlandı" ;;
         SKIP:02-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Apt paket sunucusu adımı atlandı" ;;
         SKIP:03-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Türkçe yerel ayar/klavye adımı atlandı" ;;
         SKIP:04-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Saat/zaman senkronizasyon adımı atlandı" ;;
         SKIP:05-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  VirtualBox paylaşım adımı atlandı" ;;
-        SKIP:06-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Yedek araç (RDAP) adımı atlandı" ;;
       esac
     done
     empty "$GREEN"
@@ -403,30 +401,6 @@ COZUM
   fi
 }
 
-step6() {
-  step_open 6 "Engellenen araçlar için yedek yöntem (whois → RDAP)"
-  step_engel "Port 43 ve diğer portlar güvenlik duvarında kapalı" <<'ENGEL'
-MEB güvenlik duvarı yalnızca HTTPS (443), HTTP (80) ve MEB DNS
-(195.175.37.137) açık tutuyor. whois (port 43), DNS bölge
-aktarımı (AXFR) ve diğer pek çok port engelli. Bu yüzden
-whois, dnsenum, theHarvester gibi araçlar çalışmıyor.
-ENGEL
-  step_cozum "whois yerine HTTPS üzerinden çalışan RDAP kurulacak" <<'COZUM'
-whois için RDAP (HTTPS üzerinden çalışan whois muadili) bir
-sarmalayıcı betik /usr/local/bin/whois'a kurulur; 3 yedek
-RDAP sunucusu sırayla denenir, sonuç klasik whois biçimine
-çevrilir. theHarvester ve dnsenum için MEB ağında çalışacak
-alternatif kullanım yöntemleri (motor değişimi, AXFR'siz mod)
-ekrana yazdırılır.
-COZUM
-  if ask_confirm; then
-    run_script "06-firewall-bypass-rdap.sh"
-  else
-    skip_step "06-firewall-bypass-rdap.sh"
-    return 0
-  fi
-}
-
 # ─── Ana akış ──────────────────────────────────────────────────────────
 banner
 prep_sudo
@@ -436,5 +410,4 @@ step2 || { celebrate; exit 1; }
 step3 || { celebrate; exit 1; }
 step4 || { celebrate; exit 1; }
 step5 || { celebrate; exit 1; }
-step6 || { celebrate; exit 1; }
 celebrate
