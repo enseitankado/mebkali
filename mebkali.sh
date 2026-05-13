@@ -46,7 +46,7 @@ MAGENTA=$'\e[35m'; BLUE=$'\e[34m'; GREY=$'\e[90m'; WHITE=$'\e[97m'
 GLY_OK="✓"; GLY_FAIL="✗"; GLY_WARN="⚠"; GLY_RUN="▸"; GLY_INFO="◆"
 GLY_SKIP="↪"; GLY_ASK="?"
 
-TOTAL_STEPS=5
+TOTAL_STEPS=12
 SUDO_PASS="${SUDO_PASS:-kali}"
 RESULTS=()
 START_TIME=$(date +%s)
@@ -235,18 +235,34 @@ celebrate() {
         OK:03-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Türkçe yerel ayarlar + Q klavye" ;;
         OK:04-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Saat dilimi + zaman senkronizasyonu" ;;
         OK:05-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  VirtualBox ana makine paylaşımı" ;;
+        OK:06-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Ders ortamı: ekran kilidi + güç yönetimi" ;;
+        OK:07-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Zafiyetli laboratuvar (DVWA, offline)" ;;
+        OK:08-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Türkçe alias seti (bash + zsh)" ;;
+        OK:09-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Türkçe manpages + 'yardim' komutu" ;;
+        OK:10-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Sınıf kimliği (ilk açılışta sorulur)" ;;
+        OK:11-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Gereksiz servisleri kapat + earlyoom" ;;
+        OK:12-*)   boxln "$GREEN" "     ${GREEN}${GLY_OK}${RST}  Etik filigran + ETIK-CERCEVE.pdf" ;;
         SKIP:01-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  MEB sertifika adımı atlandı" ;;
         SKIP:02-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Apt paket sunucusu adımı atlandı" ;;
         SKIP:03-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Türkçe yerel ayar/klavye adımı atlandı" ;;
         SKIP:04-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Saat/zaman senkronizasyon adımı atlandı" ;;
         SKIP:05-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  VirtualBox paylaşım adımı atlandı" ;;
+        SKIP:06-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Ders ortamı ayarı atlandı" ;;
+        SKIP:07-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Zafiyetli laboratuvar atlandı" ;;
+        SKIP:08-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Türkçe alias seti atlandı" ;;
+        SKIP:09-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Türkçe yardım sistemi atlandı" ;;
+        SKIP:10-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Sınıf kimliği atlandı" ;;
+        SKIP:11-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Servis temizliği atlandı" ;;
+        SKIP:12-*) boxln "$GREEN" "     ${YELLOW}${GLY_SKIP}${RST}  Etik banner atlandı" ;;
       esac
     done
     empty "$GREEN"
     boxln "$GREEN" "   ${BOLD}${WHITE}Sıradaki manuel adımlar:${RST}"
-    boxln "$GREEN" "     ${CYAN}•${RST} Bir kez oturumu kapat → aç (yerel ayar + klavye + grup)"
+    boxln "$GREEN" "     ${CYAN}•${RST} Bir kez oturumu kapat → aç (yerel ayar + klavye + docker grup)"
     boxln "$GREEN" "     ${CYAN}•${RST} Ana makinede VirtualBox ayarı: pano + paylaşılan klasör"
     boxln "$GREEN" "       ${DIM}komut için: bash 05-vbox-host-paylasim.sh --print-host-cmds${RST}"
+    boxln "$GREEN" "     ${CYAN}•${RST} İlk grafiksel girişte sınıf kimliği diyaloğu açılır"
+    boxln "$GREEN" "     ${CYAN}•${RST} DVWA: ${BOLD}mebkali-lab basla${RST} → http://127.0.0.1:8080/"
     empty "$GREEN"
     bot_bar "$GREEN"
     printf '\n'
@@ -401,13 +417,178 @@ COZUM
   fi
 }
 
+step6() {
+  step_open 6 "Ders ortamı: ekran kilidi gevşetmesi + güç yönetimi"
+  step_engel "Şifre/uyku ders akışını bozar" <<'ENGEL'
+Varsayılan XFCE ekranı 5 dakika sonra kararır, kilitlenir;
+güç yönetimi sanal makineyi uyutabilir. 40 dakikalık derste
+öğrenci her birkaç dakikada bir şifre yazmak zorunda kalır,
+öğretmen demolarında ekran kararır.
+ENGEL
+  step_cozum "xfce4-screensaver + power-manager + logind gevşetilir" <<'COZUM'
+Ekran kilidi (xfce4-screensaver) kapatılır; xfce4-power-manager
+DPMS/blank/sleep süreleri sıfırlanır (kararma/uyku yok).
+systemd-logind laptop kapağı/kullanılmaz duruma karşı pasif
+hale getirilir. light-locker varsa devre dışı bırakılır.
+Geri alma için: sudo bash 06-ders-ortami.sh --revert
+COZUM
+  if ask_confirm; then
+    run_script "06-ders-ortami.sh"
+  else
+    skip_step "06-ders-ortami.sh"
+    return 0
+  fi
+}
+
+step7() {
+  step_open 7 "Lokal zafiyetli laboratuvar (Docker DVWA, offline)"
+  step_engel "Dış zafiyetli hedef yok / olmaması gerek" <<'ENGEL'
+MTAL Siber Güvenlik dalı SQLi/XSS/CSRF deneyleri için zafiyetli
+bir hedef ister; ama internetteki herkese açık hedefler MEB
+müfredatına ve TCK 243'e uygun değil. Yerel bir laboratuvara
+ihtiyaç var; konteyner imajının da bir kez çekildikten sonra
+internetsiz çalışması gerekiyor.
+ENGEL
+  step_cozum "DVWA Docker konteyneri 127.0.0.1:8080'de kurulacak" <<'COZUM'
+docker.io kurulur, kullanıcı docker grubuna eklenir,
+vulnerables/web-dvwa imajı bir kez Docker Hub'tan çekilir
+(~700 MB). Sonrası tamamen offline. mebkali-lab basla/durdur/
+sifirla/ac komutu ve masaüstü kısayolu üretilir.
+DVWA giriş: admin/password — /setup.php → Create / Reset DB.
+COZUM
+  if ask_confirm; then
+    run_script "07-zafiyetli-lab.sh"
+  else
+    skip_step "07-zafiyetli-lab.sh"
+    return 0
+  fi
+}
+
+step8() {
+  step_open 8 "Türkçe alias seti (bash + zsh)"
+  step_engel "Türkçe komut terimi yok" <<'ENGEL'
+Yeni başlayan öğrenci için her komut yabancı sözcüktür (cp, mv,
+rm, grep, find, nmap). Türkçe karşılıklar yok; sözlük tarayarak
+komut hatırlama hatası artıyor.
+ENGEL
+  step_cozum "29 Türkçe alias — bash ve zsh ortak" <<'COZUM'
+/etc/mebkali/aliases.sh: 29 Türkçe alias (liste, kopyala, tasi,
+bul, ara, tara, kabuk, guncelle, ...). /etc/profile.d/ ve
+/etc/bash.bashrc + /etc/zsh/zshrc üzerinden otomatik yüklenir.
+Yeni terminal açıldığında alias'lar etkindir; banner gösterilmez.
+COZUM
+  if ask_confirm; then
+    run_script "08-shell-welcome.sh"
+  else
+    skip_step "08-shell-welcome.sh"
+    return 0
+  fi
+}
+
+step9() {
+  step_open 9 "Manpages-tr + 'yardim' Türkçe yardım komutu"
+  step_engel "Komut yardımı yalnızca İngilizce" <<'ENGEL'
+man sayfaları ve --help çıktıları İngilizce. Öğrenci 'nmap'
+veya 'find' için Türkçe açıklama bulamıyor; kavramı öğrenmek
+yerine sözlüğe takılıp kalıyor.
+ENGEL
+  step_cozum "Türkçe önceleyen 'yardim' wrapper kurulur" <<'COZUM'
+manpages-tr ve tldr paketleri (varsa) kurulur.
+/usr/local/bin/yardim wrapper'ı sırayla dener: tldr (tr),
+man -L tr, tldr (en), man, --help. 'yardim nmap', 'yardim ls'
+gibi kullanım. Türkçe çeviri yoksa İngilizce açıklamayı
+gösterir, kullanıcı bilinçli olarak fallback'in farkındadır.
+COZUM
+  if ask_confirm; then
+    run_script "09-manpages-tr.sh"
+  else
+    skip_step "09-manpages-tr.sh"
+    return 0
+  fi
+}
+
+step10() {
+  step_open 10 "Sınıf kimliği: ilk açılışta öğrenci/sınıf/dönem sorgusu"
+  step_engel "25 aynı VM, hangisi kimin belli değil" <<'ENGEL'
+Sınıfta 25 öğrencinin VM'i de varsayılan 'kali' hostname'iyle
+açılır; öğretmen ekrana bakınca hangi makinenin kime ait
+olduğunu göremiyor, ekran paylaşımında karışıklık çıkıyor.
+ENGEL
+  step_cozum "İlk grafiksel girişte kimlik diyaloğu çıkar" <<'COZUM'
+zenity GUI ile ad-soyad / sınıf / dönem sorulur; sonuçta
+hostname 's-ahmet-12sg2' biçiminde ayarlanır, /etc/motd
+yazılır, /etc/mebkali/kimlik.conf shell hoşgeldin'i ve conky
+filigranı tarafından okunur. Sudoers drop-in ile helper
+şifresiz çalışır. Kayıt sonrası sessiz; mebkali-kimlik --force
+ile her zaman tekrar açılır.
+COZUM
+  if ask_confirm; then
+    run_script "10-sinif-kimlik.sh"
+  else
+    skip_step "10-sinif-kimlik.sh"
+    return 0
+  fi
+}
+
+step11() {
+  step_open 11 "Gereksiz servisleri kapat + 4 GB RAM tuning"
+  step_engel "VM dar bellekli, gereksiz servisler yer kaplar" <<'ENGEL'
+cups, bluetooth, ModemManager, avahi sınıf VM'inde hiç
+kullanılmaz; ama RAM ve I/O yerler. Firefox + Burp + msfconsole
+birlikte açıldığında 4 GB VM kernel OOM'a düşüp donabiliyor.
+ENGEL
+  step_cozum "Kullanılmayan servisleri mask, earlyoom devreye alınır" <<'COZUM'
+cups/cups-browsed, bluetooth, ModemManager, avahi-daemon
+durdurulup mask'lenir (yeniden enable olamasınlar diye).
+vm.swappiness=10, vm.vfs_cache_pressure=50. earlyoom paketi
+kurulur ve agresif eşiklerle (RAM %10/%5, swap %5/%2) yapılır
+— kernel OOM kilitlenmesinden önce en ağır süreci öldürür.
+COZUM
+  if ask_confirm; then
+    run_script "11-servisleri-kapat.sh"
+  else
+    skip_step "11-servisleri-kapat.sh"
+    return 0
+  fi
+}
+
+step12() {
+  step_open 12 "Yasal/etik çerçeve: masaüstü filigranı + ETIK-CERCEVE.pdf"
+  step_engel "Etik bilinç müfredat gereği — sürekli görünmeli" <<'ENGEL'
+TCK 243/244/245, 5651, KVKK; bu konular müfredatın çekirdek
+parçası ama bir kez derste konuşulunca unutuluyor. Öğrenci
+her gün bilgisayar başındayken hatırlatıcıya ihtiyaç var.
+ENGEL
+  step_cozum "Conky filigranı + Desktop PDF/HTML üretilir" <<'COZUM'
+Conky-std kurulur; sağ-üst köşede sürekli görünür şeffaf
+filigran: öğrenci/sınıf/dönem (kimlik.conf'tan) + TCK 243 /
+244 / KVKK / 5651 uyarısı. /usr/share/mebkali/ altında HTML
+ve PDF biçiminde tam metin (5651, KVKK, yetkili test ilkeleri,
+laboratuvar kullanımı); masaüstüne kısayol. PDF için
+wkhtmltopdf / pandoc+weasyprint / paps fallback zinciri.
+COZUM
+  if ask_confirm; then
+    run_script "12-etik-banner.sh"
+  else
+    skip_step "12-etik-banner.sh"
+    return 0
+  fi
+}
+
 # ─── Ana akış ──────────────────────────────────────────────────────────
 banner
 prep_sudo
 
-step1 || { celebrate; exit 1; }
-step2 || { celebrate; exit 1; }
-step3 || { celebrate; exit 1; }
-step4 || { celebrate; exit 1; }
-step5 || { celebrate; exit 1; }
+step1  || { celebrate; exit 1; }
+step2  || { celebrate; exit 1; }
+step3  || { celebrate; exit 1; }
+step4  || { celebrate; exit 1; }
+step5  || { celebrate; exit 1; }
+step6  || { celebrate; exit 1; }
+step7  || { celebrate; exit 1; }
+step8  || { celebrate; exit 1; }
+step9  || { celebrate; exit 1; }
+step10 || { celebrate; exit 1; }
+step11 || { celebrate; exit 1; }
+step12 || { celebrate; exit 1; }
 celebrate
